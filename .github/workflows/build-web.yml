@@ -1,0 +1,45 @@
+name: Build Web
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  build-web:
+    name: React Web Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build React
+        run: npm run build
+
+      - name: Create Web archive
+        run: |
+          cd dist
+          zip -r ../InfluxAdmin-Web.zip .
+
+      - name: Upload Web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfluxAdmin-Web
+          path: InfluxAdmin-Web.zip
+          if-no-files-found: error
+          retention-days: 30

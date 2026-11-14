@@ -70,3 +70,9 @@ src-tauri/target/release/bundle/
 └── deb/
     └── influxadmin_0.1.0_amd64.deb
 ```
+
+tauri.conf.json
+"bundle": {
+  "active": true,
+  "targets": ["all"]
+}
