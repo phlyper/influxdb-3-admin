@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - master
       - develop
 
 permissions:
@@ -17,10 +18,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -40,7 +41,7 @@ jobs:
         run: npx tauri build --bundles nsis,msi
 
       - name: Upload EXE
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: InfluxAdmin-Windows-EXE
           path: src-tauri/target/release/bundle/nsis/*.exe
@@ -48,7 +49,7 @@ jobs:
           retention-days: 30
 
       - name: Upload MSI
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: InfluxAdmin-Windows-MSI
           path: src-tauri/target/release/bundle/msi/*.msi
