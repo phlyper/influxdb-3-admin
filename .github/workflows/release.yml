@@ -19,7 +19,7 @@ jobs:
             platform: Windows
             bundles: nsis,msi
 
-          - os: ubuntu-22.04
+          - os: ubuntu-26.04
             platform: Linux
             bundles: deb,appimage
 
@@ -76,7 +76,7 @@ jobs:
 
   web:
     name: Build Web
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     steps:
       - name: Checkout
@@ -109,7 +109,7 @@ jobs:
 
   release:
     name: Publish GitHub Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     needs:
       - desktop
