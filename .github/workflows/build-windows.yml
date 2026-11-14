@@ -38,6 +38,7 @@ jobs:
         run: npm ci
 
       - name: Build Windows installers
+        if: runner.os == 'Windows'
         run: npx tauri build --bundles nsis,msi
 
       - name: Upload EXE
