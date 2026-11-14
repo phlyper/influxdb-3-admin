@@ -28,7 +28,7 @@
   "bundle": {
     "active": true,
     "targets": [ "deb", "rpm", "appimage", "msi", "nsis", "app", "dmg"],
-    "category": "Development tool",
+    "category": "Developer Tool",
     "shortDescription": "InfluxDB 3 Core Administration",
     "longDescription": "Desktop administration tool for InfluxDB 3 Core",
     "icon": [
