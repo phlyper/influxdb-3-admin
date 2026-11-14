@@ -54,7 +54,8 @@ jobs:
         run: npm ci
 
       - name: Build Debian and AppImage
-        run: npx tauri build --bundles deb,appimage
+        if: runner.os == 'Linux'
+        run: npx tauri build --bundles deb,appimage,rpm
 
       - name: Upload Debian
         uses: actions/upload-artifact@v6
