@@ -1,7 +1,7 @@
 use tauri::State;
 
 use crate::{
-    models::ssh::{SshTunnelConfig, SshTunnelStatus},
+    models::ssh::{SshTunnelConfig, SshTunnelInfo, SshTunnelStatus},
     ssh::manager::TunnelManager,
 };
 
@@ -29,4 +29,9 @@ pub async fn ssh_tunnel_status(
 #[tauri::command]
 pub async fn ssh_active_tunnels(manager: State<'_, TunnelManager>) -> Result<usize, String> {
     Ok(manager.active_count().await)
+}
+
+#[tauri::command]
+pub async fn list_ssh_tunnels(manager: State<'_, TunnelManager>) -> Result<Vec<SshTunnelInfo>, String> {
+    Ok(manager.list().await)
 }

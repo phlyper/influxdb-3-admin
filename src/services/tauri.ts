@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import type {
+  ConnectionProfile,
+  SaveConnectionInput
+} from "../types/connections";
+import type { ColumnInfo, TableInfo } from "../types/explorer";
+
 export interface Connection {
   id: string;
   name: string;
@@ -15,7 +21,7 @@ export const influxApi = {
     }),
 
   databases: (connection: Connection) =>
-    invoke<any>("list_databases", {
+    invoke<string[]>("list_databases", {
       url: connection.url,
       token: connection.token
     }),
@@ -50,5 +56,43 @@ export const influxApi = {
       token: connection.token,
       database,
       query
+    }),
+
+  tables: (
+    connection: Connection,
+    database: string
+  ) =>
+    invoke<TableInfo[]>("list_tables", {
+      url: connection.url,
+      token: connection.token,
+      database
+    }),
+
+  columns: (
+    connection: Connection,
+    database: string,
+    schema: string,
+    table: string
+  ) =>
+    invoke<ColumnInfo[]>("get_table_columns", {
+      url: connection.url,
+      token: connection.token,
+      database,
+      schema,
+      table
     })
+};
+
+export const connectionApi = {
+  list: () =>
+    invoke<ConnectionProfile[]>("list_connection_profiles"),
+
+  save: (input: SaveConnectionInput) =>
+    invoke<ConnectionProfile>("save_connection_profile", { input }),
+
+  remove: (id: string) =>
+    invoke<void>("delete_connection_profile", { id }),
+
+  token: (id: string) =>
+    invoke<string>("get_connection_token", { id })
 };

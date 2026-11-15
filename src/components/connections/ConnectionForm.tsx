@@ -7,55 +7,137 @@ import {
   Link,
   Loader2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Save
 } from "lucide-react";
 
-import { invoke } from "@tauri-apps/api/core";
+import { connectionApi, influxApi } from "../../services/tauri";
+import type {
+  ConnectionProfile,
+  DirectConnectionDraft
+} from "../../types/connections";
 
 interface Props {
-  onConnected: (url: string) => void;
+  editing?: boolean;
+  profile?: ConnectionProfile | null;
+  onConnected: (draft: DirectConnectionDraft) => Promise<void>;
+  onSaved: (draft: DirectConnectionDraft) => Promise<void>;
 }
 
 export default function ConnectionForm({
-  onConnected
+  editing = false,
+  profile = null,
+  onConnected,
+  onSaved
 }: Props) {
 
-  const [name, setName] = useState("Local InfluxDB");
-  const [url, setUrl] = useState("http://localhost:8181");
+  const [url, setUrl] = useState(
+    profile?.url ?? "http://localhost:8181"
+  );
   const [token, setToken] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [savedMessage, setSavedMessage] = useState("");
+
+  function normalizeUrl() {
+    if (!url.trim()) {
+      throw new Error("InfluxDB URL is required");
+    }
+
+    const normalizedUrl = url.trim().replace(/\/+$/, "");
+
+    let parsedUrl: URL;
+
+    try {
+      parsedUrl = new URL(normalizedUrl);
+    } catch {
+      throw new Error("Invalid InfluxDB URL");
+    }
+
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      throw new Error("InfluxDB URL must start with http:// or https://");
+    }
+
+    return normalizedUrl;
+  }
+
+  // The token field starts empty when editing. Fall back to the
+  // token stored in the operating system credential store.
+  async function resolveToken() {
+    const typed = token.trim();
+
+    if (typed) {
+      return typed;
+    }
+
+    if (profile?.has_token) {
+      return connectionApi.token(profile.id);
+    }
+
+    return "";
+  }
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    setSuccess(false);
+    setSavedMessage("");
+
+    try {
+      const normalizedUrl = normalizeUrl();
+
+      await onSaved({
+        url: normalizedUrl,
+        token: token.trim()
+      });
+
+      setSavedMessage(
+        editing
+          ? "Connection updated. No connection was tested."
+          : "Connection saved. No connection was tested."
+      );
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function connect() {
 
     setLoading(true);
     setError("");
     setSuccess(false);
+    setSavedMessage("");
 
     try {
 
-      if (!url.trim()) {
-        throw new Error("InfluxDB URL is required");
-      }
+      const normalizedUrl = normalizeUrl();
 
-      if (!token.trim()) {
+      const normalizedToken = await resolveToken();
+
+      if (!normalizedToken) {
         throw new Error("InfluxDB token is required");
       }
 
-      const normalizedUrl = url.trim().replace(/\/+$/, "");
-
-      // Test InfluxDB connection
-      await invoke("test_connection", {
+      // Test InfluxDB connection and token authentication.
+      await influxApi.test({
+        id: profile?.id ?? "draft",
+        name: profile?.name ?? "draft",
         url: normalizedUrl,
-        token: token.trim()
+        token: normalizedToken
+      });
+
+      // Persist the profile and notify the parent component.
+      await onConnected({
+        url: normalizedUrl,
+        token: normalizedToken
       });
 
       setSuccess(true);
-
-      // Notify parent component
-      onConnected(normalizedUrl);
 
     } catch (err) {
 
@@ -79,23 +161,8 @@ export default function ConnectionForm({
 
       <p className="form-description">
         Connect directly to your InfluxDB 3 Core server.
+        The token is stored in the operating system credential store.
       </p>
-
-      {/* Connection Name */}
-      <div className="form-group">
-
-        <label>
-          Connection Name
-        </label>
-
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="My InfluxDB Server"
-        />
-
-      </div>
 
       {/* Server URL */}
       <div className="form-group">
@@ -126,8 +193,20 @@ export default function ConnectionForm({
           type="password"
           value={token}
           onChange={(e) => setToken(e.target.value)}
-          placeholder="Enter your InfluxDB token"
+          placeholder={
+            profile?.has_token
+              ? "Leave empty to keep the stored token"
+              : "Enter your InfluxDB token"
+          }
+          autoComplete="off"
         />
+
+        {profile?.has_token && (
+          <p className="form-hint">
+            A token is already stored for this connection.
+            Leave the field empty to keep it.
+          </p>
+        )}
 
       </div>
 
@@ -146,26 +225,56 @@ export default function ConnectionForm({
         </div>
       )}
 
-      {/* Connect Button */}
-      <button
-        className="connect-button"
-        onClick={connect}
-        disabled={loading}
-      >
+      {savedMessage && (
+        <div className="connection-success">
+          <CheckCircle size={17} />
+          <span>{savedMessage}</span>
+        </div>
+      )}
 
-        {loading ? (
-          <>
-            <Loader2 size={17} className="spin" />
-            Connecting...
-          </>
-        ) : (
-          <>
-            <Database size={17} />
-            Connect to InfluxDB
-          </>
-        )}
+      <div className="form-actions">
 
-      </button>
+        {/* Connect Button */}
+        <button
+          className="connect-button"
+          onClick={connect}
+          disabled={loading || saving}
+        >
+
+          {loading ? (
+            <>
+              <Loader2 size={17} className="spin" />
+              Connecting...
+            </>
+          ) : (
+            <>
+              <Database size={17} />
+              Connect to InfluxDB
+            </>
+          )}
+
+        </button>
+
+        <button
+          className="secondary-button"
+          onClick={save}
+          disabled={loading || saving}
+          title="Save this configuration without testing the connection"
+        >
+          {saving ? (
+            <>
+              <Loader2 size={17} className="spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save size={17} />
+              Save
+            </>
+          )}
+        </button>
+
+      </div>
 
     </div>
   );

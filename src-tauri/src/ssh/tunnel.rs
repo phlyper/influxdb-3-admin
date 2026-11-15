@@ -48,3 +48,53 @@ impl TunnelEndpoint {
         format!("http://{}", self.local_address)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config() -> SshTunnelConfig {
+        SshTunnelConfig {
+            id: "tunnel-id".into(),
+            name: "Remote".into(),
+            ssh_host: "example.test".into(),
+            ssh_port: 22,
+            ssh_username: "influxadmin".into(),
+            private_key_path: None,
+            auth_method: crate::models::ssh::SshAuthMethod::Key,
+            password: None,
+            remote_host: "127.0.0.1".into(),
+            remote_port: 8181,
+            local_port: 18181,
+        }
+    }
+
+    #[test]
+    fn builds_localhost_endpoint() {
+        let endpoint = TunnelEndpoint::from_config(&config()).unwrap();
+
+        assert_eq!(endpoint.local_address, "127.0.0.1:18181");
+        assert_eq!(endpoint.ssh_destination, "influxadmin@example.test");
+        assert_eq!(
+            endpoint.forwarding_argument(),
+            "127.0.0.1:18181:127.0.0.1:8181"
+        );
+        assert_eq!(endpoint.local_url(), "http://127.0.0.1:18181");
+    }
+
+    #[test]
+    fn rejects_missing_host() {
+        let mut config = config();
+        config.ssh_host.clear();
+
+        assert!(TunnelEndpoint::from_config(&config).is_err());
+    }
+
+    #[test]
+    fn rejects_zero_port() {
+        let mut config = config();
+        config.local_port = 0;
+
+        assert!(TunnelEndpoint::from_config(&config).is_err());
+    }
+}
