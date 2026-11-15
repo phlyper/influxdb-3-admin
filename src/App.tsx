@@ -1,186 +1,320 @@
+
 import { useState } from "react";
-import { influxApi, Connection } from "./services/tauri";
 import {
   Database,
   Server,
-  Play,
+  ShieldCheck,
+  Settings,
   Plus,
   Activity,
+  Power,
   Terminal
 } from "lucide-react";
 
+import ConnectionManager from "./components/connections/ConnectionManager";
+
+type ConnectionMode = "direct" | "ssh";
+
+interface Connection {
+  id: string;
+  name: string;
+  url: string;
+  mode: ConnectionMode;
+  connected: boolean;
+}
+
 export default function App() {
-  const [connection, setConnection] =
+
+  const [connections, setConnections] = useState<Connection[]>([]);
+
+  const [activeConnection, setActiveConnection] =
     useState<Connection | null>(null);
 
-  const [url, setUrl] =
-    useState("http://127.0.0.1:8181");
+  const [showConnectionManager, setShowConnectionManager] =
+    useState(true);
 
-  const [token, setToken] = useState("");
-  const [database, setDatabase] = useState("");
-  const [query, setQuery] = useState(
-    "SELECT * FROM system.tables LIMIT 10"
-  );
+  const [connectionName, setConnectionName] =
+    useState("InfluxDB Server");
 
-  const [databases, setDatabases] = useState<string[]>([]);
-  const [result, setResult] = useState("");
-  const [status, setStatus] = useState("Disconnected");
-  const [error, setError] = useState("");
+  // ==========================================
+  // ADD CONNECTION
+  // ==========================================
 
-  async function connect() {
-    try {
-      setError("");
+  function handleConnected(
+    url: string,
+    mode: ConnectionMode
+  ) {
+    const newConnection: Connection = {
+      id: crypto.randomUUID(),
+      name: connectionName,
+      url,
+      mode,
+      connected: true
+    };
 
-      const c: Connection = {
-        id: crypto.randomUUID(),
-        name: "InfluxDB Core",
-        url,
-        token
-      };
+    setConnections(previous => [
+      ...previous,
+      newConnection
+    ]);
 
-      await influxApi.test(c);
-
-      const data = await influxApi.databases(c);
-
-      setConnection(c);
-      setDatabases(data.databases ?? []);
-      setStatus("Connected");
-    } catch (e) {
-      setError(String(e));
-      setStatus("Connection failed");
-    }
+    setActiveConnection(newConnection);
+    setShowConnectionManager(false);
   }
 
-  async function executeQuery() {
-    if (!connection || !database) return;
+  // ==========================================
+  // SELECT CONNECTION
+  // ==========================================
 
-    try {
-      setError("");
-
-      const response = await influxApi.query(
-        connection,
-        database,
-        query
-      );
-
-      setResult(response);
-    } catch (e) {
-      setError(String(e));
-    }
+  function selectConnection(connection: Connection) {
+    setActiveConnection(connection);
   }
+
+  // ==========================================
+  // DISCONNECT
+  // ==========================================
+
+  function disconnect() {
+    setActiveConnection(null);
+    setShowConnectionManager(true);
+  }
+
+  // ==========================================
+  // RENDER
+  // ==========================================
 
   return (
-    <div className="app">
+    <div className="app-container">
+
+      {/* SIDEBAR */}
+
       <aside className="sidebar">
-        <h2>InfluxAdmin</h2>
 
-        <div className="section-title">
-          CONNECTIONS
+        <div className="sidebar-logo">
+          <Database size={25} />
+          <span>InfluxAdmin</span>
         </div>
 
-        <div className="connection">
-          <Server size={16} />
-          InfluxDB Core
+        <div className="sidebar-section">
+
+          <div className="sidebar-section-title">
+            CONNECTIONS
+
+            <button
+              onClick={() => {
+                setConnectionName("InfluxDB Server");
+                setShowConnectionManager(true);
+              }}
+              title="New connection"
+            >
+              <Plus size={17} />
+            </button>
+          </div>
+
+          {connections.map(connection => (
+
+            <button
+              key={connection.id}
+              className={`connection-item ${
+                activeConnection?.id === connection.id
+                  ? "active"
+                  : ""
+              }`}
+              onClick={() => selectConnection(connection)}
+            >
+
+              {connection.mode === "ssh" ? (
+                <ShieldCheck size={17} />
+              ) : (
+                <Server size={17} />
+              )}
+
+              <span>{connection.name}</span>
+
+              <span className="status-dot" />
+
+            </button>
+
+          ))}
+
+          {connections.length === 0 && (
+            <p className="empty-connections">
+              No connections yet
+            </p>
+          )}
+
         </div>
 
-        <div className="section-title">
-          WORKSPACE
-        </div>
+        <div className="sidebar-bottom">
 
-        <button onClick={connect}>
-          <Activity size={16} />
-          Connect
-        </button>
-
-        <button onClick={() => setResult("")}>
-          <Terminal size={16} />
-          SQL Workbench
-        </button>
-
-        <button onClick={async () => {
-          if (connection) {
-            const data = await influxApi.databases(connection);
-            setDatabases(data.databases ?? []);
-          }
-        }}>
-          <Database size={16} />
-          Refresh databases
-        </button>
-
-        <div className="section-title">
-          DATABASES
-        </div>
-
-        {databases.map(db => (
-          <button
-            key={db}
-            className="database"
-            onClick={() => setDatabase(db)}
-          >
-            <Database size={14} />
-            {db}
+          <button>
+            <Activity size={17} />
+            Monitoring
           </button>
-        ))}
+
+          <button>
+            <Terminal size={17} />
+            SQL Workbench
+          </button>
+
+          <button>
+            <Settings size={17} />
+            Settings
+          </button>
+
+        </div>
+
       </aside>
 
-      <main className="main">
-        <header className="topbar">
-          <span>InfluxAdmin / SQL Workbench</span>
-          <span>{status}</span>
+      {/* MAIN CONTENT */}
+
+      <main className="main-content">
+
+        {/* HEADER */}
+
+        <header className="app-header">
+
+          <div>
+            <h1>
+              {activeConnection
+                ? activeConnection.name
+                : "Dashboard"}
+            </h1>
+
+            <p>
+              InfluxDB 3 Core Administration
+            </p>
+          </div>
+
+          {activeConnection && (
+
+            <div className="header-actions">
+
+              <span className="connection-status">
+                <span className="status-dot" />
+                Connected
+              </span>
+
+              <button
+                className="disconnect-button"
+                onClick={disconnect}
+              >
+                <Power size={16} />
+                Disconnect
+              </button>
+
+            </div>
+
+          )}
+
         </header>
 
-        <section className="connection-panel">
-          <input
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            placeholder="InfluxDB URL"
-          />
+        {/* CONNECTION MANAGER */}
 
-          <input
-            value={token}
-            onChange={e => setToken(e.target.value)}
-            type="password"
-            placeholder="Admin token"
-          />
+        {showConnectionManager && (
 
-          <button onClick={connect}>
-            Connect
-          </button>
-        </section>
+          <section className="content-area">
 
-        <section className="workspace">
-          <h3>SQL Workbench</h3>
+            <div className="connection-name-input">
+              <label>Connection name</label>
 
-          <select
-            value={database}
-            onChange={e => setDatabase(e.target.value)}
-          >
-            <option value="">Select database</option>
-            {databases.map(db => (
-              <option key={db} value={db}>
-                {db}
-              </option>
-            ))}
-          </select>
+              <input
+                value={connectionName}
+                onChange={e =>
+                  setConnectionName(e.target.value)
+                }
+                placeholder="My InfluxDB Server"
+              />
+            </div>
 
-          <textarea
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-          />
+            <ConnectionManager
+              onConnected={handleConnected}
+            />
 
-          <button onClick={executeQuery}>
-            <Play size={16} />
-            Execute SQL
-          </button>
+          </section>
 
-          <h3>Results</h3>
-          <pre>{result || "No results yet"}</pre>
+        )}
 
-          {error && (
-            <div className="error">{error}</div>
-          )}
-        </section>
+        {/* DASHBOARD */}
+
+        {!showConnectionManager && activeConnection && (
+
+          <section className="dashboard-content">
+
+            <div className="welcome-card">
+
+              <Database size={35} />
+
+              <h2>
+                Welcome to InfluxAdmin
+              </h2>
+
+              <p>
+                Connected to {activeConnection.url}
+              </p>
+
+              <span className="connection-mode">
+                {activeConnection.mode === "ssh"
+                  ? "SSH Tunnel"
+                  : "Direct Connection"}
+              </span>
+
+            </div>
+
+            <div className="dashboard-grid">
+
+              <div className="dashboard-card">
+                <Database size={25} />
+                <h3>Databases</h3>
+                <p>Explore your databases</p>
+              </div>
+
+              <div className="dashboard-card">
+                <Terminal size={25} />
+                <h3>SQL Workbench</h3>
+                <p>Execute SQL queries</p>
+              </div>
+
+              <div className="dashboard-card">
+                <Activity size={25} />
+                <h3>Monitoring</h3>
+                <p>Monitor server activity</p>
+              </div>
+
+              <div className="dashboard-card">
+                <ShieldCheck size={25} />
+                <h3>Security</h3>
+                <p>Manage access tokens</p>
+              </div>
+
+            </div>
+
+          </section>
+
+        )}
+
+        {/* EMPTY STATE */}
+
+        {!showConnectionManager && !activeConnection && (
+
+          <section className="empty-state">
+
+            <Database size={45} />
+
+            <h2>No active connection</h2>
+
+            <button
+              onClick={() => setShowConnectionManager(true)}
+            >
+              <Plus size={17} />
+              New Connection
+            </button>
+
+          </section>
+
+        )}
+
       </main>
+
     </div>
   );
 }
