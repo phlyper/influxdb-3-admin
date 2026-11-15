@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev"
   },
   "dependencies": {
     "@monaco-editor/react": "^4",
