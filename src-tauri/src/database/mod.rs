@@ -394,6 +394,74 @@ mod tests {
         drop(database);
         let _ = std::fs::remove_file(path);
     }
+
+    #[tokio::test]
+    async fn upgrades_legacy_ssh_profile_schema() {
+        let path = test_database_path();
+
+        // Recreate a database created before SSH password support.
+        {
+            let options = SqliteConnectOptions::new()
+                .filename(&path)
+                .create_if_missing(true);
+
+            let pool = SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect_with(options)
+                .await
+                .unwrap();
+
+            sqlx::raw_sql(
+                r#"
+                CREATE TABLE ssh_profiles (
+                    connection_id TEXT PRIMARY KEY NOT NULL,
+                    ssh_host TEXT NOT NULL,
+                    ssh_port INTEGER NOT NULL,
+                    ssh_username TEXT NOT NULL,
+                    private_key_path TEXT,
+                    remote_host TEXT NOT NULL,
+                    remote_port INTEGER NOT NULL,
+                    local_port INTEGER NOT NULL
+                );
+                "#,
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+
+            pool.close().await;
+        }
+
+        let database = AppDatabase::init(path.clone()).await.unwrap();
+
+        let mut ssh_input = direct_input();
+        ssh_input.connection_type = ConnectionType::Ssh;
+        ssh_input.ssh_profile = Some(SshProfile {
+            ssh_host: "example.test".into(),
+            ssh_port: 22,
+            ssh_username: "influxadmin".into(),
+            private_key_path: None,
+            auth_method: SshAuthMethod::Key,
+            has_password: false,
+            remote_host: "127.0.0.1".into(),
+            remote_port: 8181,
+            local_port: 18181,
+        });
+
+        let saved = database
+            .save_profile(&ssh_input, "legacy-connection", false, false)
+            .await
+            .unwrap();
+
+        let ssh = saved.ssh_profile.unwrap();
+
+        // Legacy rows default to key authentication with no password.
+        assert_eq!(ssh.auth_method, SshAuthMethod::Key);
+        assert!(!ssh.has_password);
+
+        drop(database);
+        let _ = std::fs::remove_file(path);
+    }
 }
 
 fn row_to_profile(row: &SqliteRow) -> Result<ConnectionProfile, String> {

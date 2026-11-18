@@ -144,7 +144,9 @@ export default function App() {
 
     if (
       session &&
-      (meta.tokenUpdated || profileSettingsChanged(session, profile))
+      (meta.tokenUpdated ||
+        meta.sshPasswordUpdated ||
+        profileSettingsChanged(session, profile))
     ) {
       // Always ask the tunnel manager to stop: stopping an unknown
       // tunnel is a no-op, and the saved profile may have just been

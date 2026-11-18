@@ -75,7 +75,10 @@ export default function ConnectionManager({
       token: token || undefined
     });
 
-    onSaved(profile, { tokenUpdated: Boolean(token) });
+    onSaved(profile, {
+      tokenUpdated: Boolean(token),
+      sshPasswordUpdated: false
+    });
   }
 
   async function saveSshConnection(draft: SshConnectionDraft) {
@@ -85,7 +88,8 @@ export default function ConnectionManager({
       url: draft.url,
       connection_type: "ssh",
       token: draft.token,
-      ssh_profile: draft.ssh_profile
+      ssh_profile: draft.ssh_profile,
+      ssh_password: draft.ssh_password
     });
 
     onConnected(profile, draft.token, draft.url);
@@ -95,6 +99,7 @@ export default function ConnectionManager({
   // or verifying the InfluxDB token.
   async function saveSshConfiguration(draft: SshConnectionDraft) {
     const token = draft.token.trim();
+    const sshPassword = draft.ssh_password?.trim();
 
     const profile = await connectionApi.save({
       id: draft.tunnel_id,
@@ -102,10 +107,14 @@ export default function ConnectionManager({
       url: draft.url,
       connection_type: "ssh",
       token: token || undefined,
-      ssh_profile: draft.ssh_profile
+      ssh_profile: draft.ssh_profile,
+      ssh_password: sshPassword || undefined
     });
 
-    onSaved(profile, { tokenUpdated: Boolean(token) });
+    onSaved(profile, {
+      tokenUpdated: Boolean(token),
+      sshPasswordUpdated: Boolean(sshPassword)
+    });
   }
 
   return (

@@ -365,6 +365,7 @@ button {
 
 .form-group input,
 .ssh-form input,
+.ssh-form select,
 .database-create input {
   width: 100%;
   padding: 11px 12px;
@@ -377,6 +378,7 @@ button {
 
 .form-group input:focus,
 .ssh-form input:focus,
+.ssh-form select:focus,
 .database-create input:focus {
   border-color: #2dd4bf;
 }

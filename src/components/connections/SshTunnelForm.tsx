@@ -251,7 +251,8 @@ export default function SshTunnelForm({
 
       <p className="form-description">
         The host key must already be present in your known_hosts file.
-        InfluxAdmin never disables host key verification.
+        InfluxAdmin never disables host key verification. Use a private
+        key, your SSH agent, or a password.
       </p>
 
       <label>SSH Host</label>
@@ -277,12 +278,57 @@ export default function SshTunnelForm({
         placeholder="influxadmin"
       />
 
-      <label>Private Key Path</label>
-      <input
-        value={config.private_key_path ?? ""}
-        onChange={e => update("private_key_path", e.target.value)}
-        placeholder="/home/user/.ssh/id_ed25519"
-      />
+      <label>Authentication Method</label>
+      <select
+        className="auth-method"
+        value={config.auth_method}
+        onChange={e =>
+          setAuthMethod(e.target.value as SshAuthMethod)
+        }
+      >
+        <option value="key">Private key / SSH agent</option>
+        <option value="password">Password</option>
+      </select>
+
+      {config.auth_method === "key" ? (
+        <>
+          <label>Private Key Path</label>
+          <input
+            value={config.private_key_path ?? ""}
+            onChange={e => update("private_key_path", e.target.value)}
+            placeholder="/home/user/.ssh/id_ed25519"
+          />
+
+          <p className="form-hint">
+            Leave empty to use your SSH agent or the default key.
+          </p>
+        </>
+      ) : (
+        <>
+          <label>SSH Password</label>
+          <input
+            type="password"
+            value={sshPassword}
+            onChange={e => setSshPassword(e.target.value)}
+            placeholder={
+              profile?.ssh_profile?.has_password
+                ? "Leave empty to keep the stored password"
+                : "Enter the SSH password"
+            }
+            autoComplete="new-password"
+          />
+
+          <p className="form-hint">
+            {profile?.ssh_profile?.has_password
+              ? "A password is already stored in the operating system credential store. Leave the field empty to keep it. "
+              : ""}
+            Passwords are stored by the operating system, never in the
+            application database. Only password and keyboard-interactive
+            authentication are supported; additional prompts such as
+            one-time codes are not.
+          </p>
+        </>
+      )}
 
       <hr />
 
