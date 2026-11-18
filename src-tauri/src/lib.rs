@@ -1,70 +1,41 @@
 mod commands;
+mod database;
 mod influxdb;
 mod models;
+mod security;
 mod ssh;
 
-use serde_json::Value;
 use tauri::Manager;
 
-use influxdb::client::InfluxClient;
+use database::AppDatabase;
 use ssh::manager::TunnelManager;
 
 // ==========================================
-// INFLUXDB COMMANDS
+// SSH ASKPASS HELPER
 // ==========================================
 
-#[tauri::command]
-async fn test_connection(url: String, token: String) -> Result<String, String> {
-    let client = InfluxClient::new(url, token);
-    client.health().await
-}
+// Environment variables used when the application binary re-launches
+// itself as the OpenSSH askpass helper for password authentication.
+pub const ASKPASS_MODE_ENV: &str = "INFLUXADMIN_ASKPASS";
+pub const ASKPASS_SECRET_ENV: &str = "INFLUXADMIN_SSH_PASSWORD";
 
-#[tauri::command]
-async fn list_databases(url: String, token: String) -> Result<Value, String> {
-    let client = InfluxClient::new(url, token);
-
-    let result = client.databases().await?;
-
-    serde_json::from_str(&result).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn create_database(url: String, token: String, name: String) -> Result<String, String> {
-    if name.trim().is_empty() {
-        return Err("Database name is required".into());
+// Called from main() before Tauri starts. OpenSSH runs the askpass
+// helper with the prompt as an argument and reads the password from
+// stdout. Returns true when the process was an askpass invocation.
+pub fn try_run_as_askpass() -> bool {
+    if std::env::var(ASKPASS_MODE_ENV).ok().as_deref() != Some("1") {
+        return false;
     }
 
-    let client = InfluxClient::new(url, token);
-    client.create_database(name).await
-}
+    let secret = std::env::var(ASKPASS_SECRET_ENV).unwrap_or_default();
 
-#[tauri::command]
-async fn delete_database(url: String, token: String, name: String) -> Result<String, String> {
-    if name.trim().is_empty() {
-        return Err("Database name is required".into());
-    }
+    use std::io::Write;
 
-    let client = InfluxClient::new(url, token);
-    client.delete_database(name).await
-}
+    let mut stdout = std::io::stdout();
+    let _ = writeln!(stdout, "{secret}");
+    let _ = stdout.flush();
 
-#[tauri::command]
-async fn execute_sql(
-    url: String,
-    token: String,
-    database: String,
-    query: String,
-) -> Result<String, String> {
-    if database.trim().is_empty() {
-        return Err("Database name is required".into());
-    }
-
-    if query.trim().is_empty() {
-        return Err("SQL query is empty".into());
-    }
-
-    let client = InfluxClient::new(url, token);
-    client.query_sql(database, query).await
+    true
 }
 
 // ==========================================
@@ -76,19 +47,39 @@ pub fn run() {
     tauri::Builder::default()
         // SSH Tunnel Manager
         .manage(TunnelManager::default())
+        // Application metadata database
+        .setup(|app| {
+            let app_data_dir = app.path().app_data_dir()?;
+            let database_path = app_data_dir.join("influxadmin.db");
+
+            let database = tauri::async_runtime::block_on(AppDatabase::init(database_path))
+                .map_err(|error| -> Box<dyn std::error::Error> { error.into() })?;
+
+            app.manage(database);
+
+            Ok(())
+        })
         // Register commands
         .invoke_handler(tauri::generate_handler![
             // InfluxDB
-            test_connection,
-            list_databases,
-            create_database,
-            delete_database,
-            execute_sql,
+            commands::influxdb::test_connection,
+            commands::influxdb::list_databases,
+            commands::influxdb::create_database,
+            commands::influxdb::delete_database,
+            commands::influxdb::execute_sql,
+            commands::influxdb::list_tables,
+            commands::influxdb::get_table_columns,
+            // Connections
+            commands::connections::list_connection_profiles,
+            commands::connections::save_connection_profile,
+            commands::connections::delete_connection_profile,
+            commands::connections::get_connection_token,
             // SSH
             commands::ssh::start_ssh_tunnel,
             commands::ssh::stop_ssh_tunnel,
             commands::ssh::ssh_tunnel_status,
             commands::ssh::ssh_active_tunnels,
+            commands::ssh::list_ssh_tunnels,
         ])
         .build(tauri::generate_context!())
         .expect("InfluxAdmin initialization failed")

@@ -6,8 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:dev": "tsc && vite build --mode development",
+    "build:prod": "tsc && vite build --mode production",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev"
+    "tauri:dev": "tauri dev",
+    "test": "vitest run"
   },
   "dependencies": {
     "@monaco-editor/react": "^4",
@@ -26,6 +29,7 @@
     "@vitejs/plugin-react": "^4",
     "tailwindcss": "^4",
     "typescript": "^5.9.3",
-    "vite": "^6"
+    "vite": "^6",
+    "vitest": "^5"
   }
 }
